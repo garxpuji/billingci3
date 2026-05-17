@@ -1,0 +1,1 @@
+Plg Yth, Terima kasih Anda Telah membayar Tagihan Wifi / Internet dengan no layanan <?= $no_services ?> a/n _<?= $namapelanggan ?>_ Periode <?=$periode ?> sebesar *<?=$tagihan ?>*. 0A%0A*<?=$namaperusahaan ?>*%0A<?=$slogan ?>%0A<?=$link ?>
