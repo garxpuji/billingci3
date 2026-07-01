@@ -1,0 +1,7 @@
+The file changes include unusual entries like 'db-' and '"query\\""' which appear to be malformed or temporary files that should be ignored, along with a normal PHP source file modification.
+
+```
+# Temporary/Malformed files
+db-
+"query"
+```
