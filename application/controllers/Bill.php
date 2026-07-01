@@ -335,8 +335,22 @@ class Bill extends CI_Controller
         $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
         $data['bill'] = $this->bill_m->getInvoiceFilter($post, $cover)->result();
 
-        $data['invoice'] = $this->bill_m->invoice_no();
+        // Fix N+1: Load all invoice_detail at once
+        if (!empty($data['bill'])) {
+            $invoice_ids = array_column($data['bill'], 'invoice');
+            $this->db->where_in('invoice_id', $invoice_ids);
+            $invoice_details = $this->db->get('invoice_detail')->result();
+            
+            // Group invoice details by invoice_id
+            $data['invoice_details_grouped'] = [];
+            foreach ($invoice_details as $detail) {
+                $data['invoice_details_grouped'][$detail->invoice_id][] = $detail;
+            }
+        } else {
+            $data['invoice_details_grouped'] = [];
+        }
 
+        $data['invoice'] = $this->bill_m->invoice_no();
         $data['company'] = $this->db->get('company')->row_array();
 
         $this->template->load('backend', 'backend/bill/billFilter', $data);

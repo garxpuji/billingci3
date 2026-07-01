@@ -1380,25 +1380,67 @@ class customer extends CI_Controller
     {
         $result = $this->customer_m->getDataTable();
         $company = $this->db->get('company')->row_array();
+        
+        // Preload all services to avoid N+1 query
+        $services_data = [];
+        $no_services_list = [];
+        $email_list = [];
+        foreach ($result as $r) {
+            if ($r->no_services != 0) {
+                $no_services_list[] = $r->no_services;
+            } else {
+                $email_list[] = $r->email;
+            }
+        }
+        
+        if (!empty($no_services_list)) {
+            $this->db->where_in('no_services', $no_services_list);
+            $query_services_by_no = $this->db->get('services')->result();
+            foreach ($query_services_by_no as $s) {
+                $services_data[$s->no_services] = $s;
+            }
+        }
+        
+        if (!empty($email_list)) {
+            $this->db->where_in('email', $email_list);
+            $query_services_by_email = $this->db->get('services')->result();
+            foreach ($query_services_by_email as $s) {
+                if (!isset($services_data[$s->email])) {
+                    $services_data[$s->email] = $s;
+                }
+            }
+        }
+        
+        // Preload all users to avoid N+1 query
+        $emails = array_unique(array_column((array)$result, 'email'));
+        $users_data = [];
+        if (!empty($emails)) {
+            $this->db->where_in('email', $emails);
+            $query_users = $this->db->get('user')->result();
+            foreach ($query_users as $u) {
+                $users_data[$u->email] = $u;
+            }
+        }
+        
         $data = [];
         $no = $_POST['start'];
         foreach ($result as $result) {
-            if ($result->no_services != 0) {
-                $query = "SELECT * FROM `services` WHERE `services`.`no_services` = $result->no_services";
-            } else {
-                $query = "SELECT * FROM `services` WHERE `services`.`email` = '$result->email'";
-            }
-            $querying = $this->db->query($query)->result();
             $subtotal = 0;
-            foreach ($querying as  $dataa)
-                $subtotal += $dataa->total;
+            if ($result->no_services != 0 && isset($services_data[$result->no_services])) {
+                $service = $services_data[$result->no_services];
+                $subtotal = $service->total ?? 0;
+            } elseif (isset($services_data[$result->email])) {
+                $service = $services_data[$result->email];
+                $subtotal = $service->total ?? 0;
+            }
+            
             $row = array();
             $row[] = ++$no;
             $row[] = '<input type=' . 'checkbox' . ' class=' . 'check-item' . ' id="ceklis" name=' . 'customer_id[]' . ' value=' . $result->customer_id . '>';
             $row[] = $result->name;
             $row[] = $result->no_services;
 
-            $user = $this->db->get_where('user', ['email' => $result->email])->row_array();
+            $user = isset($users_data[$result->email]) ? $users_data[$result->email] : null;
 
 
             if ($user > 0) {
@@ -1463,26 +1505,68 @@ class customer extends CI_Controller
     public function getActiveCustomer()
     {
         $result = $this->customer_m->getActive();
-        $data = [];
         $company = $this->db->get('company')->row_array();
+        
+        // Preload all services to avoid N+1 query
+        $services_data = [];
+        $no_services_list = [];
+        $email_list = [];
+        foreach ($result as $r) {
+            if ($r->no_services != 0) {
+                $no_services_list[] = $r->no_services;
+            } else {
+                $email_list[] = $r->email;
+            }
+        }
+        
+        if (!empty($no_services_list)) {
+            $this->db->where_in('no_services', $no_services_list);
+            $query_services_by_no = $this->db->get('services')->result();
+            foreach ($query_services_by_no as $s) {
+                $services_data[$s->no_services] = $s;
+            }
+        }
+        
+        if (!empty($email_list)) {
+            $this->db->where_in('email', $email_list);
+            $query_services_by_email = $this->db->get('services')->result();
+            foreach ($query_services_by_email as $s) {
+                if (!isset($services_data[$s->email])) {
+                    $services_data[$s->email] = $s;
+                }
+            }
+        }
+        
+        // Preload all users to avoid N+1 query
+        $emails = array_unique(array_column((array)$result, 'email'));
+        $users_data = [];
+        if (!empty($emails)) {
+            $this->db->where_in('email', $emails);
+            $query_users = $this->db->get('user')->result();
+            foreach ($query_users as $u) {
+                $users_data[$u->email] = $u;
+            }
+        }
+        
+        $data = [];
         $no = $_POST['start'];
         foreach ($result as $result) {
-            if ($result->no_services != 0) {
-                $query = "SELECT * FROM `services` WHERE `services`.`no_services` = $result->no_services";
-            } else {
-                $query = "SELECT * FROM `services` WHERE `services`.`email` = '$result->email'";
-            }
-            $querying = $this->db->query($query)->result();
             $subtotal = 0;
-            foreach ($querying as  $dataa)
-                $subtotal += $dataa->total;
+            if ($result->no_services != 0 && isset($services_data[$result->no_services])) {
+                $service = $services_data[$result->no_services];
+                $subtotal = $service->total ?? 0;
+            } elseif (isset($services_data[$result->email])) {
+                $service = $services_data[$result->email];
+                $subtotal = $service->total ?? 0;
+            }
+            
             $row = array();
             $row[] = ++$no;
             $row[] = '<input type=' . 'checkbox' . ' class=' . 'check-item' . ' id="ceklis" name=' . 'customer_id[]' . ' value=' . $result->customer_id . '>';
             $row[] = $result->name;
             $row[] = $result->no_services;
 
-            $user = $this->db->get_where('user', ['email' => $result->email])->row_array();
+            $user = isset($users_data[$result->email]) ? $users_data[$result->email] : null;
 
 
             if ($user > 0) {
@@ -1545,20 +1629,52 @@ class customer extends CI_Controller
     public function getNonActiveCustomer()
     {
         $result = $this->customer_m->getNonActive();
+        
+        // Preload all services to avoid N+1 query
+        $services_data = [];
+        $no_services_list = [];
+        foreach ($result as $r) {
+            if ($r->no_services != 0) {
+                $no_services_list[] = $r->no_services;
+            }
+        }
+        
+        if (!empty($no_services_list)) {
+            $this->db->where_in('no_services', $no_services_list);
+            $query_services = $this->db->get('services')->result();
+            foreach ($query_services as $s) {
+                $services_data[$s->no_services] = $s;
+            }
+        }
+        
+        // Preload all users to avoid N+1 query
+        $emails = array_unique(array_column((array)$result, 'email'));
+        $users_data = [];
+        if (!empty($emails)) {
+            $this->db->where_in('email', $emails);
+            $query_users = $this->db->get('user')->result();
+            foreach ($query_users as $u) {
+                $users_data[$u->email] = $u;
+            }
+        }
+        
+        $company = $this->db->get('company')->row_array();
         $data = [];
         $no = $_POST['start'];
         foreach ($result as $result) {
-            $query = "SELECT * FROM `services` WHERE `services`.`no_services` = $result->no_services";
-            $querying = $this->db->query($query)->result();
             $subtotal = 0;
-            foreach ($querying as  $dataa)
-                $subtotal +=  $dataa->total;
+            if ($result->no_services != 0 && isset($services_data[$result->no_services])) {
+                $service = $services_data[$result->no_services];
+                $subtotal = $service->total ?? 0;
+            }
+            
             $row = array();
             $row[] = ++$no;
             $row[] = '<input type=' . 'checkbox' . ' class=' . 'check-item' . ' id="ceklis" name=' . 'customer_id[]' . ' value=' . $result->customer_id . '>';
             $row[] = $result->name;
             $row[] = $result->no_services;
-            $user = $this->db->get_where('user', ['email' => $result->email])->row_array();
+            
+            $user = isset($users_data[$result->email]) ? $users_data[$result->email] : null;
 
             if ($user > 0) {
                 $row[] = $result->email . '<br>Akses Login <i class="fa fa-check" aria-hidden="true" style="color:green"></i>';
@@ -1623,22 +1739,52 @@ class customer extends CI_Controller
     public function getCustomerfree()
     {
         $result = $this->customer_m->getfree();
-        $data = [];
+        
+        // Preload all services to avoid N+1 query
+        $services_data = [];
+        $no_services_list = [];
+        foreach ($result as $r) {
+            if ($r->no_services != 0) {
+                $no_services_list[] = $r->no_services;
+            }
+        }
+        
+        if (!empty($no_services_list)) {
+            $this->db->where_in('no_services', $no_services_list);
+            $query_services = $this->db->get('services')->result();
+            foreach ($query_services as $s) {
+                $services_data[$s->no_services] = $s;
+            }
+        }
+        
+        // Preload all users to avoid N+1 query
+        $emails = array_unique(array_column((array)$result, 'email'));
+        $users_data = [];
+        if (!empty($emails)) {
+            $this->db->where_in('email', $emails);
+            $query_users = $this->db->get('user')->result();
+            foreach ($query_users as $u) {
+                $users_data[$u->email] = $u;
+            }
+        }
+        
         $company = $this->db->get('company')->row_array();
+        $data = [];
         $no = $_POST['start'];
         foreach ($result as $result) {
-            $query = "SELECT * FROM `services` WHERE `services`.`no_services` = $result->no_services";
-            $querying = $this->db->query($query)->result();
             $subtotal = 0;
-            foreach ($querying as  $dataa)
-                $subtotal +=  $dataa->total;
+            if ($result->no_services != 0 && isset($services_data[$result->no_services])) {
+                $service = $services_data[$result->no_services];
+                $subtotal = $service->total ?? 0;
+            }
+            
             $row = array();
             $row[] = ++$no;
             $row[] = '<input type=' . 'checkbox' . ' class=' . 'check-item' . ' id="ceklis" name=' . 'customer_id[]' . ' value=' . $result->customer_id . '>';
             $row[] = $result->name;
             $row[] = $result->no_services;
 
-            $user = $this->db->get_where('user', ['email' => $result->email])->row_array();
+            $user = isset($users_data[$result->email]) ? $users_data[$result->email] : null;
 
             if ($user > 0) {
                 $row[] = $result->email . '<br>Akses Login <i class="fa fa-check" aria-hidden="true" style="color:green"></i>';
@@ -1699,22 +1845,52 @@ class customer extends CI_Controller
     public function getCustomerisolir()
     {
         $result = $this->customer_m->getisolir();
-        $data = [];
+        
+        // Preload all services to avoid N+1 query
+        $services_data = [];
+        $no_services_list = [];
+        foreach ($result as $r) {
+            if ($r->no_services != 0) {
+                $no_services_list[] = $r->no_services;
+            }
+        }
+        
+        if (!empty($no_services_list)) {
+            $this->db->where_in('no_services', $no_services_list);
+            $query_services = $this->db->get('services')->result();
+            foreach ($query_services as $s) {
+                $services_data[$s->no_services] = $s;
+            }
+        }
+        
+        // Preload all users to avoid N+1 query
+        $emails = array_unique(array_column((array)$result, 'email'));
+        $users_data = [];
+        if (!empty($emails)) {
+            $this->db->where_in('email', $emails);
+            $query_users = $this->db->get('user')->result();
+            foreach ($query_users as $u) {
+                $users_data[$u->email] = $u;
+            }
+        }
+        
         $company = $this->db->get('company')->row_array();
+        $data = [];
         $no = $_POST['start'];
         foreach ($result as $result) {
-            $query = "SELECT * FROM `services` WHERE `services`.`no_services` = $result->no_services";
-            $querying = $this->db->query($query)->result();
             $subtotal = 0;
-            foreach ($querying as  $dataa)
-                $subtotal +=  $dataa->total;
+            if ($result->no_services != 0 && isset($services_data[$result->no_services])) {
+                $service = $services_data[$result->no_services];
+                $subtotal = $service->total ?? 0;
+            }
+            
             $row = array();
             $row[] = ++$no;
             $row[] = '<input type=' . 'checkbox' . ' class=' . 'check-item' . ' id="ceklis" name=' . 'customer_id[]' . ' value=' . $result->customer_id . '>';
             $row[] = $result->name;
             $row[] = $result->no_services;
 
-            $user = $this->db->get_where('user', ['email' => $result->email])->row_array();
+            $user = isset($users_data[$result->email]) ? $users_data[$result->email] : null;
 
             if ($user > 0) {
                 $row[] = $result->email . '<br>Akses Login <i class="fa fa-check" aria-hidden="true" style="color:green"></i>';
@@ -1778,24 +1954,68 @@ class customer extends CI_Controller
     public function getWaitCustomer()
     {
         $result = $this->customer_m->getWait();
+        
+        // Preload all services to avoid N+1 query
+        $services_data = [];
+        $no_services_list = [];
+        $email_list = [];
+        foreach ($result as $r) {
+            if ($r->no_services != 0) {
+                $no_services_list[] = $r->no_services;
+            } else {
+                $email_list[] = $r->email;
+            }
+        }
+        
+        if (!empty($no_services_list)) {
+            $this->db->where_in('no_services', $no_services_list);
+            $query_services_by_no = $this->db->get('services')->result();
+            foreach ($query_services_by_no as $s) {
+                $services_data[$s->no_services] = $s;
+            }
+        }
+        
+        if (!empty($email_list)) {
+            $this->db->where_in('email', $email_list);
+            $query_services_by_email = $this->db->get('services')->result();
+            foreach ($query_services_by_email as $s) {
+                if (!isset($services_data[$s->email])) {
+                    $services_data[$s->email] = $s;
+                }
+            }
+        }
+        
+        // Preload all users to avoid N+1 query
+        $emails = array_unique(array_column((array)$result, 'email'));
+        $users_data = [];
+        if (!empty($emails)) {
+            $this->db->where_in('email', $emails);
+            $query_users = $this->db->get('user')->result();
+            foreach ($query_users as $u) {
+                $users_data[$u->email] = $u;
+            }
+        }
+        
+        $company = $this->db->get('company')->row_array();
         $data = [];
         $no = $_POST['start'];
         foreach ($result as $result) {
-            if ($result->no_services != 0) {
-                $query = "SELECT * FROM `services` WHERE `services`.`no_services` = $result->no_services";
-            } else {
-                $query = "SELECT * FROM `services` WHERE `services`.`email` = '$result->email'";
-            }
-            $querying = $this->db->query($query)->result();
             $subtotal = 0;
-            foreach ($querying as  $dataa)
-                $subtotal +=  $dataa->total;
+            if ($result->no_services != 0 && isset($services_data[$result->no_services])) {
+                $service = $services_data[$result->no_services];
+                $subtotal = $service->total ?? 0;
+            } elseif (isset($services_data[$result->email])) {
+                $service = $services_data[$result->email];
+                $subtotal = $service->total ?? 0;
+            }
+            
             $row = array();
             $row[] = ++$no;
             $row[] = '<input type=' . 'checkbox' . ' class=' . 'check-item' . ' id="ceklis" name=' . 'customer_id[]' . ' value=' . $result->customer_id . '>';
             $row[] = $result->name;
             $row[] = $result->no_services;
-            $user = $this->db->get_where('user', ['email' => $result->email])->row_array();
+            
+            $user = isset($users_data[$result->email]) ? $users_data[$result->email] : null;
 
             if ($user > 0) {
                 $row[] = $result->email . '<br>Akses Login <i class="fa fa-check" aria-hidden="true" style="color:green"></i>';
